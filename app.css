@@ -1,0 +1,6 @@
+body { font-family: system-ui, Arial; padding: 1rem; max-width: 900px; margin: 0 auto; }
+main { margin-top: 1rem; }
+input { padding: 6px; margin: 0.25rem 0; }
+.buttons { margin: 0.5rem 0; }
+button { padding: 8px 12px; margin-right: 6px; }
+#info p { margin: 4px 0; }
