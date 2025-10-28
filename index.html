@@ -1,0 +1,143 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Phone Location Tracker</title>
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <main>
+    <h1>Phone Location Tracker</h1>
+    <p id="status">Not tracking</p>
+
+    <label>
+      Device ID:
+      <input id="deviceId" placeholder="your-device-id" />
+    </label>
+
+    <div class="buttons">
+      <button id="startBtn">Start Tracking</button>
+      <button id="stopBtn" disabled>Stop Tracking</button>
+    </div>
+
+    <div id="info">
+      <p><strong>Last sent:</strong> <span id="lastTs">—</span></p>
+      <p><strong>Latitude:</strong> <span id="lat">—</span></p>
+      <p><strong>Longitude:</strong> <span id="lon">—</span></p>
+      <p><strong>Accuracy (m):</strong> <span id="acc">—</span></p>
+    </div>
+
+    <p>On desktop you can use <code>localhost</code> for testing. For real use, host this page on HTTPS (example: GitHub Pages).</p>
+    <p>View dashboard: <a href="/map.html" target="_blank">Map dashboard</a></p>
+  </main>
+
+<script>
+const startBtn = document.getElementById('startBtn');
+const stopBtn = document.getElementById('stopBtn');
+const status = document.getElementById('status');
+const deviceIdInput = document.getElementById('deviceId');
+const lastTs = document.getElementById('lastTs');
+const latEl = document.getElementById('lat');
+const lonEl = document.getElementById('lon');
+const accEl = document.getElementById('acc');
+
+let watchId = null;
+let pushIntervalMs = 15000; // send at most every 15s (adjust)
+let lastSent = 0;
+const serverUrl = ''; // empty => same origin; or set to https://your-server.com
+
+function sendLocation(payload) {
+  fetch((serverUrl || '') + '/api/locations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }).then(r => r.json())
+    .then(json => {
+      // optional: show success/fail
+    }).catch(err => {
+      console.error('Send error', err);
+    });
+}
+
+function onPosition(pos) {
+  const now = Date.now();
+  const device_id = deviceIdInput.value.trim();
+  if (!device_id) {
+    status.textContent = 'Please enter a device id before tracking';
+    stopTracking();
+    return;
+  }
+
+  const payload = {
+    device_id,
+    latitude: pos.coords.latitude,
+    longitude: pos.coords.longitude,
+    accuracy: pos.coords.accuracy,
+    heading: pos.coords.heading || null,
+    speed: pos.coords.speed || null,
+    ts: now
+  };
+
+  // Update UI
+  lastTs.textContent = new Date(now).toLocaleString();
+  latEl.textContent = payload.latitude.toFixed(6);
+  lonEl.textContent = payload.longitude.toFixed(6);
+  accEl.textContent = payload.accuracy;
+
+  // Rate-limit sending
+  if (now - lastSent >= pushIntervalMs) {
+    sendLocation(payload);
+    lastSent = now;
+  }
+}
+
+function onError(err) {
+  console.warn('Geolocation error', err);
+  status.textContent = `Error: ${err.message}`;
+}
+
+function startTracking() {
+  if (!('geolocation' in navigator)) {
+    status.textContent = 'Geolocation not supported by this browser';
+    return;
+  }
+  const device_id = deviceIdInput.value.trim();
+  if (!device_id) {
+    status.textContent = 'Enter a device id (any string) to identify this device';
+    return;
+  }
+  status.textContent = 'Requesting permission...';
+  // ask permission and start watch
+  watchId = navigator.geolocation.watchPosition(onPosition, onError, {
+    enableHighAccuracy: true,
+    maximumAge: 5000,
+    timeout: 20000
+  });
+  startBtn.disabled = true;
+  stopBtn.disabled = false;
+  status.textContent = 'Tracking started';
+}
+
+function stopTracking() {
+  if (watchId !== null) {
+    navigator.geolocation.clearWatch(watchId);
+    watchId = null;
+  }
+  startBtn.disabled = false;
+  stopBtn.disabled = true;
+  status.textContent = 'Not tracking';
+}
+
+startBtn.addEventListener('click', startTracking);
+stopBtn.addEventListener('click', stopTracking);
+
+// attempt to restore device id from localStorage
+document.addEventListener('DOMContentLoaded', () => {
+  const saved = localStorage.getItem('device_id');
+  if (saved) deviceIdInput.value = saved;
+  deviceIdInput.addEventListener('input', () => localStorage.setItem('device_id', deviceIdInput.value.trim()));
+});
+</script>
+</body>
+</html>
